@@ -160,6 +160,29 @@ def test_azure_bicepparam_no_secure_decorator():
             )
 
 
+def test_azure_bicepparam_no_hash_comments():
+    """Regression: Bicepparam files do not support `#` line comments.
+
+    Only `//` comments are valid. The `#` character triggers BCP001.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        target = _scaffold(
+            Path(td),
+            "demo-bicep",
+            "python-flask",
+            deploy_target="azure",
+        )
+        for env in ("dev", "staging", "prod"):
+            content = (target / "infra" / f"{env}.bicepparam").read_text()
+            for lineno, line in enumerate(content.splitlines(), 1):
+                stripped = line.lstrip()
+                if stripped.startswith("#"):
+                    raise AssertionError(
+                        f"{env}.bicepparam line {lineno} uses `#` comment; "
+                        "bicepparam files only support `//` (BCP001)"
+                    )
+
+
 if __name__ == "__main__":
     # Allow running without pytest: `python tests/test_smoke.py`
     failures = 0

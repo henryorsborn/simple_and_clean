@@ -29,6 +29,9 @@ param imageName string = '{{ registry }}/{{ service_name }}:latest'
 param postgresAdminLogin string = 'pgadmin'
 
 @description('PostgreSQL administrator password. Use Key Vault references in prod.')
+// To pass a secret at deploy time without committing it, use either:
+//   az deployment group create ... --parameters postgresAdminPassword="@Microsoft.KeyVault(VaultName=...;SecretName=...)"
+//   or fetch from a CI secret: --parameters postgresAdminPassword="$(az keyvault secret show ... --query value -o tsv)"
 @secure()
 param postgresAdminPassword string
 
