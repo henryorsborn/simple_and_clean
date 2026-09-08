@@ -20,6 +20,25 @@ little weird.
 Built from patterns I learned running deployment orchestration for 1,700+
 services at Microsoft.
 
+## Why this exists
+
+I'm a platform engineer. The job I loved most was turning deployment
+orchestration from a manual, error-prone process into something reproducible
+and self-service — so engineers downstream of my work got hours back to
+spend on code that actually mattered.
+
+`servicectl` is the distillation of that work into a tool any engineer can
+use in 60 seconds. One command scaffolds a production-grade service:
+Dockerfile, CI pipeline, tests with coverage thresholds, health checks,
+secrets scanning, container scanning, and dev container. Pick a template,
+override what you need, push it. CI is green before you've finished reading
+this README.
+
+If you're evaluating this for a hiring loop: this repo is meant to show
+how I think about platform defaults, security-by-default, and CI that
+doesn't lie. See the **[For hiring managers](#for-hiring-managers)** section
+below for the explicit mapping to my Microsoft work.
+
 ---
 
 ## Demo
@@ -169,10 +188,9 @@ servicectl init <name>
 
 ## For hiring managers
 
-This is a portfolio piece I built to demonstrate the platform-engineering
-patterns I lived for 4+ years at Microsoft — specifically the work of
-turning deployment orchestration from a manual, error-prone process into
-something reproducible and self-service.
+A portfolio piece demonstrating platform-engineering patterns from 4+ years
+at Microsoft — specifically turning deployment orchestration from a manual,
+error-prone process into something reproducible and self-service.
 
 What it shows:
 
