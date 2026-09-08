@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.6
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY {{ service_name_pascal }}.csproj ./
+RUN dotnet restore {{ service_name_pascal }}.csproj
+
+COPY . .
+RUN dotnet publish {{ service_name_pascal }}.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+USER nonroot
+EXPOSE 3000
+ENV ASPNETCORE_URLS=http://+:3000 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_RUNNING_IN_CONTAINER=true
+
+ENTRYPOINT ["dotnet", "{{ service_name_pascal }}.dll"]

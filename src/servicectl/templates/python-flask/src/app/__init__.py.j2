@@ -1,0 +1,47 @@
+"""{{ service_name }} — Flask app factory."""
+
+from __future__ import annotations
+
+import os
+
+import psycopg
+from flask import Flask, jsonify
+
+
+def create_app() -> Flask:
+    app = Flask(__name__)
+
+    db_conn = _connect_db()
+
+    @app.get("/healthz")
+    def healthz():
+        return jsonify(status="ok")
+
+    @app.get("/readyz")
+    def readyz():
+        try:
+            with db_conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            return jsonify(status="ready")
+        except Exception as exc:  # noqa: BLE001
+            return jsonify(status="not-ready", error=str(exc)), 503
+
+    @app.get("/")
+    def index():
+        return jsonify(service="{{ service_name }}", status="running")
+
+    return app
+
+
+def _connect_db() -> psycopg.Connection:
+    return psycopg.connect(
+        host=os.environ.get("POSTGRES_HOST", "localhost"),
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
+        dbname=os.environ.get("POSTGRES_DB", "{{ service_name }}"),
+        user=os.environ.get("POSTGRES_USER", "postgres"),
+        password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
+    )
+
+
+if __name__ == "__main__":
+    create_app().run(host="0.0.0.0", port=int(os.environ.get("PORT", "3000")))

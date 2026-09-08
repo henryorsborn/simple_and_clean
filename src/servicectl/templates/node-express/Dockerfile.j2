@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1.6
+# ---- Build stage ----
+FROM node:20-alpine AS build
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+# ---- Runtime stage ----
+FROM gcr.io/distroless/nodejs20-debian12 AS runtime
+WORKDIR /app
+
+COPY --from=build /app /app
+
+USER nonroot
+EXPOSE 3000
+ENV NODE_ENV=production \
+    PORT=3000
+
+CMD ["src/index.js"]

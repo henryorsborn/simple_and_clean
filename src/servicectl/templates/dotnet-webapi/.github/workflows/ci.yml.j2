@@ -1,0 +1,92 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE_NAME: {{ image_name }}
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  test:
+    name: build + test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: {{ service_name }}_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ***
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database={{ service_name }}_test;Username=postgres;Password=***"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: {% raw %}${{ env.DOTNET_VERSION }}{% endraw %}
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: '**/TestResults/**/coverage.cobertura.xml'
+
+  build:
+    name: build + scan
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: {% raw %}${{ env.DOTNET_VERSION }}{% endraw %}
+      - run: dotnet publish -c Release -o /tmp/publish --no-restore
+      - name: Build image
+        run: |
+          {% raw %}docker build -t $IMAGE_NAME:${{ github.sha }} .{% endraw %}
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: {% raw %}$IMAGE_NAME:${{ github.sha }}{% endraw %}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+{% if ci_provider == 'github-actions' %}
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: {% raw %}github.event_name == 'push' && github.ref == 'refs/heads/main'{% endraw %}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: {{ registry }}
+          username: {% raw %}${{ github.actor }}{% endraw %}
+          password: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+      - name: Push image
+        run: |
+          {% raw %}docker tag $IMAGE_NAME:${{ github.sha }} $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:${{ github.sha }}
+          docker push $IMAGE_NAME:latest{% endraw %}
+{% endif %}

@@ -1,0 +1,17 @@
+"""Tests for {{ service_name }}."""
+
+from app import create_app
+
+
+def test_index():
+    client = create_app().test_client()
+    res = client.get("/")
+    assert res.status_code == 200
+    assert res.json == {"service": "{{ service_name }}", "status": "running"}
+
+
+def test_healthz():
+    client = create_app().test_client()
+    res = client.get("/healthz")
+    assert res.status_code == 200
+    assert res.json == {"status": "ok"}

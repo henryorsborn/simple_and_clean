@@ -1,0 +1,10 @@
+# gitleaks config — baseline so we don't trip on known-safe patterns.
+# Add new commits to this baseline as they're audited.
+title = "{{ service_name }} gitleaks config"
+
+[allowlist]
+  description = "Allow example/example patterns from .env.example"
+  paths = [
+    '''\.env\.example$''',
+    '''README\.md$''',
+  ]

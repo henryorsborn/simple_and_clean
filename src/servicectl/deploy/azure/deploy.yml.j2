@@ -1,0 +1,104 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  SERVICE_NAME: {{ service_name }}
+  IMAGE_NAME: {{ image_name }}
+
+jobs:
+  deploy:
+    name: deploy to ${{ '{{' }} inputs.environment || 'dev' {{ '}}' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: {% raw %}${{ inputs.environment || 'dev' }}{% endraw %}
+    permissions:
+      id-token: write   # required for OIDC federation
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: {% raw %}${{ secrets.AZURE_CLIENT_ID }}{% endraw %}
+          tenant-id: {% raw %}${{ secrets.AZURE_TENANT_ID }}{% endraw %}
+          subscription-id: {% raw %}${{ secrets.AZURE_SUBSCRIPTION_ID }}{% endraw %}
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ "${{ '{{' }} github.event_name {{ '}}' }}" = "workflow_dispatch" ]; then
+            echo "value=${{ '{{' }} inputs.environment {{ '}}' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push image to ACR
+        run: |
+          set -euo pipefail
+          ACR_NAME=$(az acr list --resource-group {% raw %}${{ secrets.AZURE_RESOURCE_GROUP }}{% endraw %} \
+            --query "[?starts_with(name, '${SERVICE_NAME}-${ENV:-dev}')].name | [0]" -o tsv)
+          ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
+          az acr login --name "${ACR_NAME}"
+          docker build \
+            -t "${ACR_LOGIN_SERVER}/${SERVICE_NAME}:${{ '{{' }} steps.tag.outputs.value {{ '}}' }}" \
+            -t "${ACR_LOGIN_SERVER}/${SERVICE_NAME}:latest" \
+            .
+          docker push "${ACR_LOGIN_SERVER}/${SERVICE_NAME}:${{ '{{' }} steps.tag.outputs.value {{ '}}' }}"
+          docker push "${ACR_LOGIN_SERVER}/${SERVICE_NAME}:latest"
+          echo "ACR_LOGIN_SERVER=${ACR_LOGIN_SERVER}" >> "$GITHUB_ENV"
+
+      - name: Bicep build
+        run: az bicep build --file infra/main.bicep --outfile infra/main.json
+
+      - name: Deploy infrastructure
+        id: deployinfra
+        run: |
+          set -euo pipefail
+          ENV_FILE="infra/${{ '{{' }} inputs.environment || 'dev' {{ '}}' }}.bicepparam"
+          az deployment group create \
+            --resource-group {% raw %}${{ secrets.AZURE_RESOURCE_GROUP }}{% endraw %} \
+            --template-file infra/main.bicep \
+            --parameters "${ENV_FILE}" \
+            --parameters imageName="${ACR_LOGIN_SERVER}/${SERVICE_NAME}:${{ '{{' }} steps.tag.outputs.value {{ '}}' }}" \
+            --query 'properties.outputs' \
+            --output json | tee /tmp/deploy-output.json
+          ACR_LOGIN_SERVER=$(jq -r '.acrLoginServer.value' /tmp/deploy-output.json)
+          echo "ACR_LOGIN_SERVER=${ACR_LOGIN_SERVER}" >> "$GITHUB_ENV"
+
+      - name: Restart App Service to pick up new image
+        run: |
+          APP_NAME="${SERVICE_NAME}-${{ '{{' }} inputs.environment || 'dev' {{ '}}' }}-app"
+          az webapp restart --name "${APP_NAME}" \
+            --resource-group {% raw %}${{ secrets.AZURE_RESOURCE_GROUP }}{% endraw %}
+
+      - name: Smoke test
+        run: |
+          APP_NAME="${SERVICE_NAME}-${{ '{{' }} inputs.environment || 'dev' {{ '}}' }}-app"
+          HOSTNAME=$(az webapp show --name "${APP_NAME}" \
+            --resource-group {% raw %}${{ secrets.AZURE_RESOURCE_GROUP }}{% endraw %} \
+            --query defaultHostName -o tsv)
+          for i in {1..30}; do
+            if curl -sf "https://${HOSTNAME}/healthz" >/dev/null; then
+              echo "Health check passed after ${i} attempts"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check failed after 5 minutes" >&2
+          exit 1

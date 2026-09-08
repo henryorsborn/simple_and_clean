@@ -1,0 +1,13 @@
+bin/
+obj/
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+README.md
+tests
+.vscode/
+.idea/
+*.log
+*.user

@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package + dev dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e .
+
+      - name: Run smoke tests
+        run: python tests/test_smoke.py
+
+  bicep-validate:
+    name: validate generated Bicep (Azure overlay)
+    runs-on: ubuntu-latest
+    # Only run when the Azure overlay templates change OR on main branch.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install servicectl
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e .
+
+      - name: Scaffold a sample Azure-deploy service
+        run: |
+          python -m servicectl init sample-svc \
+              --template=python-flask \
+              --deploy=azure \
+              --azure-region=eastus \
+              --no-git \
+              --output-dir=_ci_scratch
+
+      - name: Validate generated Bicep via azure-cli Docker image
+        uses: docker://mcr.microsoft.com/azure-cli:latest
+        with:
+          args: >
+            sh -c "az bicep build
+                   --file /github/workspace/_ci_scratch/sample-svc/infra/main.bicep
+                   --outfile /github/workspace/_ci_scratch/sample-svc/infra/main.json
+                   && echo 'Bicep build succeeded'"

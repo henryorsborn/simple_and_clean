@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+*.egg-info/
+build/
+dist/
+
+# Generated services (when servicectl is used locally to scaffold test services)
+_test_scratch/
+test-*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Editor temp
+*.tmp
+
+# Logs
+*.log

@@ -1,0 +1,91 @@
+# {{ service_name }}
+
+> {{ template_description }} — scaffolded by [servicectl](https://github.com/henryorsborn/servicectl).
+
+## Quick start
+
+```bash
+# Local dev with Postgres in Docker
+docker compose -f docker-compose.dev.yml up
+
+# Or run without containers
+cp .env.example .env
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+flask --app app:create_app run --port 3000 --debug
+```
+
+The service listens on `:3000`. Health check: `GET /healthz`. Readiness: `GET /readyz`.
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `pytest` | Run tests with coverage; fails below {{ coverage_threshold }}% |
+| `ruff check .` | Lint |
+| `flask --app app:create_app run` | Dev server |
+| `gunicorn --bind 0.0.0.0:3000 "app:create_app()"` | Prod server (used in Docker) |
+
+## Layout
+
+```
+.
+├── Dockerfile                # multi-stage build, slim runtime
+├── docker-compose.dev.yml    # local dev: this service + Postgres
+├── .devcontainer/            # VS Code remote dev
+├── .github/workflows/ci.yml  # GitHub Actions: lint, test, build, scan
+├── azure-pipelines.yml       # Azure DevOps equivalent
+├── src/app/                  # Flask app factory
+├── tests/                    # pytest
+├── .env.example              # all env vars, no plaintext secrets
+└── .gitleaks.toml            # secrets scanning config
+```
+
+## CI
+
+Default CI runs on [{{ ci_provider }}]({{ 'https://github.com/features/actions' if ci_provider == 'github-actions' else 'https://azure.microsoft.com/en-us/products/devops/pipelines' }}). Each PR runs:
+
+1. **lint** — ruff
+2. **test** — pytest with {{ coverage_threshold }}% coverage threshold
+3. **build** — multi-stage Docker build
+4. **scan** — Trivy container scan; HIGH/CRITICAL = fail
+{% if ci_provider == 'github-actions' %}
+5. **publish** — on push to `main`, push image to {{ registry }}
+{% else %}
+5. **publish** — on push to `main`, push image to {{ registry }}
+{% endif %}
+
+## Deployment
+
+{% if deploy_target == 'local' %}Local only for now (`docker compose up`). Cloud deploy flags coming next:
+`--deploy=azure`, `--deploy=aws`, `--deploy=gcp-cloud-run`.{% elif deploy_target == 'azure' %}Azure App Service (Linux, container). Files in `infra/`:
+- `infra/main.bicep` — ACR + App Service Plan + App Service + Postgres Flexible Server
+- `infra/dev.bicepparam`, `infra/staging.bicepparam`, `infra/prod.bicepparam` — env-specific parameters
+
+Deploy:
+```bash
+az login
+az bicep build --file infra/main.bicep --outfile infra/main.json
+az deployment group create --resource-group <rg> \
+    --template-file infra/main.bicep \
+    --parameters infra/dev.bicepparam
+```
+
+CD lives in `.github/workflows/deploy.yml` (push to `main` or manual dispatch).
+Required secrets:
+- `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_SUBSCRIPTION_ID` (OIDC federation)
+- `AZURE_RESOURCE_GROUP`{% elif deploy_target == 'azure-container-apps' %}Azure Container Apps. Deploy:
+```bash
+az login
+az containerapp up --source . --resource-group <rg> --environment <env>
+```{% endif %}
+
+## Secrets
+
+Never commit secrets. `.env.example` shows the required variables. CI runs
+[gitleaks](https://github.com/gitleaks/gitleaks) so accidental commits get
+caught before they hit `main`.
+
+## License
+
+MIT.

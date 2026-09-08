@@ -1,0 +1,33 @@
+using Npgsql;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton<NpgsqlDataSource>(sp =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var conn = cfg.GetConnectionString("Postgres")
+        ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required");
+    return new NpgsqlDataSourceBuilder(conn).Build();
+});
+
+var app = builder.Build();
+
+app.MapGet("/", () => Results.Ok(new { service = "{{ service_name }}", status = "running" }));
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/readyz", async (NpgsqlDataSource db, CancellationToken ct) =>
+{
+    try
+    {
+        await using var cmd = db.CreateCommand("SELECT 1");
+        await cmd.ExecuteScalarAsync(ct);
+        return Results.Ok(new { status = "ready" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { status = "not-ready", error = ex.Message }, statusCode: 503);
+    }
+});
+
+app.Run();
+
+public partial class Program { }

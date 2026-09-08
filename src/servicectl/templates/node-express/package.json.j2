@@ -1,0 +1,37 @@
+{
+  "name": "{{ service_name }}",
+  "version": "0.1.0",
+  "description": "{{ template_description }} service scaffolded by servicectl",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest --coverage",
+    "lint": "eslint src/ tests/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "lines": {{ coverage_threshold }},
+        "statements": {{ coverage_threshold }},
+        "functions": {{ coverage_threshold }},
+        "branches": {{ coverage_threshold }}
+      }
+    }
+  }
+}

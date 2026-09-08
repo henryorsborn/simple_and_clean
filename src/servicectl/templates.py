@@ -1,0 +1,36 @@
+"""Template registry.
+
+Templates are bundled as directories under `servicectl/templates/<id>/`.
+Each template folder contains the static + templated files that get rendered
+into the new service directory.
+
+To add a new template:
+  1. Create `servicectl/templates/<id>/` with the files you want generated.
+  2. Add `<id>` to TEMPLATES below (and a short description).
+  3. Add it to the CLI's --template Choice list.
+"""
+
+from __future__ import annotations
+
+from importlib import resources
+
+# Registry: id -> short description (used in --help).
+TEMPLATES: dict[str, str] = {
+    "node-express": "Node.js + Express + PostgreSQL",
+    "python-flask": "Python + Flask + PostgreSQL",
+    "dotnet-webapi": ".NET / C# Web API + PostgreSQL",
+}
+
+
+def list_templates() -> list[str]:
+    """Return the list of registered template ids."""
+    return list(TEMPLATES.keys())
+
+
+def get_template_description(template: str) -> str:
+    return TEMPLATES.get(template, "")
+
+
+def template_path(template: str):
+    """Return a Traversable pointing at the bundled template directory."""
+    return resources.files("servicectl").joinpath("templates", template)
