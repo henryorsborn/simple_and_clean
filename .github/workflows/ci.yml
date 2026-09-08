@@ -68,6 +68,8 @@ jobs:
 
       - name: Validate generated Bicep
         run: |
+          set -eux
+          ls -la _ci_scratch/sample-svc/infra/
           bicep build \
               --file _ci_scratch/sample-svc/infra/main.bicep \
               --outfile _ci_scratch/sample-svc/infra/main.json
