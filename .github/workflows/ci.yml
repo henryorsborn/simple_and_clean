@@ -61,17 +61,18 @@ jobs:
 
       - name: Install Bicep CLI
         run: |
-          curl -Lo bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+          # Pin to a specific Bicep version so the CI environment matches
+          # the one we tested locally. Update the version deliberately and
+          # re-run the smoke tests if you change this.
+          BICEP_VERSION="v0.46.1"
+          curl -Lo bicep "https://github.com/Azure/bicep/releases/download/${BICEP_VERSION}/bicep-linux-x64"
           chmod +x bicep
           sudo mv bicep /usr/local/bin/bicep
           bicep --version
 
       - name: Validate generated Bicep
         run: |
-          set -eux
-          echo '--- scaffolded files ---'
-          find _ci_scratch -type f | sort
-          echo '--- main.bicep ---'
+          set -e
           bicep build \
               --file _ci_scratch/sample-svc/infra/main.bicep \
               --outfile _ci_scratch/sample-svc/infra/main.json
