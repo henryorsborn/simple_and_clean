@@ -10,5 +10,7 @@ param appServicePlanSku = 'B1'
 param postgresSku = 'B20ms'
 param acrSku = 'Basic'
 
-@secure()
+# Passwords belong in Key Vault, not in this file. Wire it up at deploy time
+# with `--parameters postgresAdminPassword=$(az keyvault secret show ...)` or
+# pull from a pipeline secret. See README for the recommended pattern.
 param postgresAdminPassword = 'replace-me-with-a-real-secret-from-key-vault'

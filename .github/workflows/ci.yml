@@ -68,9 +68,13 @@ jobs:
 
       - name: Validate generated Bicep
         run: |
-          set -eux
-          ls -la _ci_scratch/sample-svc/infra/
+          set -e
           bicep build \
               --file _ci_scratch/sample-svc/infra/main.bicep \
               --outfile _ci_scratch/sample-svc/infra/main.json
-          echo "Bicep build succeeded."
+          for env in dev staging prod; do
+              bicep build-params \
+                  --file _ci_scratch/sample-svc/infra/${env}.bicepparam \
+                  --outfile _ci_scratch/sample-svc/infra/${env}.bicepparam.json
+          done
+          echo "Bicep and bicepparam builds succeeded."

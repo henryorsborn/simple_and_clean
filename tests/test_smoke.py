@@ -137,6 +137,29 @@ def test_azure_overlay_skipped_for_local():
         assert not (target / "deploy.yml").exists()
 
 
+def test_azure_bicepparam_no_secure_decorator():
+    """Regression: Bicepparam files do not support decorators.
+
+    The BCP130 error breaks `bicep build-params` if `@secure()` is used inside
+    a .bicepparam file. The @secure() decorator belongs on the corresponding
+    param in main.bicep, not in the bicepparam file.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        target = _scaffold(
+            Path(td),
+            "demo-bicep",
+            "python-flask",
+            deploy_target="azure",
+            azure_region="eastus",
+        )
+        for env in ("dev", "staging", "prod"):
+            content = (target / "infra" / f"{env}.bicepparam").read_text()
+            assert "@secure" not in content, (
+                f"{env}.bicepparam contains @secure() decorator; "
+                "bicepparam files do not support decorators (BCP130)"
+            )
+
+
 if __name__ == "__main__":
     # Allow running without pytest: `python tests/test_smoke.py`
     failures = 0
