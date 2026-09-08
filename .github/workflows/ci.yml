@@ -36,7 +36,11 @@ jobs:
   bicep-validate:
     name: validate generated Bicep (Azure overlay)
     runs-on: ubuntu-latest
-    # Only run when the Azure overlay templates change OR on main branch.
+    # Use the official azure-cli image so `az bicep` is preinstalled and the
+    # Bicep CLI is on PATH. The source checkout is bind-mounted at the
+    # working directory, so we can read the generated files directly.
+    container:
+      image: mcr.microsoft.com/azure-cli:latest
     steps:
       - uses: actions/checkout@v4
 
@@ -60,11 +64,9 @@ jobs:
               --no-git \
               --output-dir=_ci_scratch
 
-      - name: Validate generated Bicep via azure-cli Docker image
-        uses: docker://mcr.microsoft.com/azure-cli:latest
-        with:
-          args: >
-            sh -c "az bicep build
-                   --file /github/workspace/_ci_scratch/sample-svc/infra/main.bicep
-                   --outfile /github/workspace/_ci_scratch/sample-svc/infra/main.json
-                   && echo 'Bicep build succeeded'"
+      - name: Validate generated Bicep
+        run: |
+          az bicep build \
+              --file _ci_scratch/sample-svc/infra/main.bicep \
+              --outfile _ci_scratch/sample-svc/infra/main.json
+          echo "Bicep build succeeded."
