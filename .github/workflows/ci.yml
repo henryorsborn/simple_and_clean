@@ -68,7 +68,10 @@ jobs:
 
       - name: Validate generated Bicep
         run: |
-          set -e
+          set -eux
+          echo '--- scaffolded files ---'
+          find _ci_scratch -type f | sort
+          echo '--- main.bicep ---'
           bicep build \
               --file _ci_scratch/sample-svc/infra/main.bicep \
               --outfile _ci_scratch/sample-svc/infra/main.json
