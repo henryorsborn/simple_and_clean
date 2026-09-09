@@ -162,6 +162,7 @@ servicectl init internal-tool --template=python-flask --no-readme
 servicectl doctor                       # check current dir, human-readable
 servicectl doctor my-service --json     # check a specific service, JSON output
 servicectl doctor my-service --strict   # warnings count as errors (CI gate)
+servicectl doctor my-service --pause    # wait for keypress before exit (for shortcut launches)
 ```
 
 ## Validating existing services with `doctor`
@@ -217,6 +218,7 @@ servicectl init <name>
 servicectl doctor [PATH]
   --json     output JSON instead of human-readable text
   --strict   treat warnings as errors (exit 2 if any warnings exist)
+  --pause    wait for a keypress before exiting (for shortcut launches)
 ```
 
 ---

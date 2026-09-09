@@ -198,7 +198,12 @@ def init(
     is_flag=True,
     help="Output JSON instead of human-readable text (useful in CI).",
 )
-def doctor(path: Path, strict: bool, as_json: bool) -> None:
+@click.option(
+    "--pause",
+    is_flag=True,
+    help="Wait for a keypress before exiting (useful when launched from a shortcut so the window doesn't close immediately).",
+)
+def doctor(path: Path, strict: bool, as_json: bool, pause: bool) -> None:
     """Validate an existing scaffolded service against servicectl standards.
 
     Checks for: required files (Dockerfile, .gitleaks.toml, README.md, etc.),
@@ -212,6 +217,19 @@ def doctor(path: Path, strict: bool, as_json: bool) -> None:
         click.echo(render_json(report))
     else:
         click.echo(render_text(report))
+
+    if pause:
+        # Keep the window open so the user can read the output before it closes.
+        # Skip when stdin isn't a TTY (e.g. piped from another command).
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            click.echo("")
+            click.echo("Press any key to exit...")
+            try:
+                import msvcrt  # Windows-only; standard library.
+                msvcrt.getch()
+            except ImportError:
+                # Non-Windows fallback: read a line from stdin.
+                input()
 
     if strict and report.has_warnings and not report.has_errors:
         sys.exit(EXIT_ERROR)

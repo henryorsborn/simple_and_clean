@@ -179,6 +179,30 @@ def test_exit_code_for_errors():
     assert report.has_errors
 
 
+def test_pause_skips_when_not_tty():
+    """The --pause logic should only engage when stdin AND stdout are TTYs.
+
+    When invoked from a piped/captured context (CI, test harness), the
+    pause prompt must be skipped so the command doesn't hang.
+    """
+    import subprocess
+    # `python -m servicectl doctor --pause` with stdin closed should exit
+    # cleanly without waiting for a keypress.
+    result = subprocess.run(
+        ["python", "-m", "servicectl", "doctor", ".", "--pause"],
+        cwd=str(Path(__file__).resolve().parent.parent),
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        timeout=15,
+    )
+    # Should exit with 0 or 1 (warnings) since the servicectl repo itself
+    # isn't a scaffolded service. The point: it didn't hang waiting for input.
+    assert result.returncode in (0, 1, 2)
+    # The 'Press any key' message should NOT appear in piped output.
+    assert "Press any key" not in result.stdout
+
+
 if __name__ == "__main__":
     # Allow running without pytest: `python tests/test_doctor.py`
     failures = 0
