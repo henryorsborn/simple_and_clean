@@ -4,6 +4,24 @@ All notable changes to `servicectl` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-09-08
+
+### Added
+- **`servicectl doctor` subcommand** — validates an existing scaffolded
+  service against servicectl standards. Catches drift: missing files,
+  single-stage Dockerfiles, removed gitleaks config, dropped bicepparam
+  files, etc.
+  - Checks grouped by severity: ERROR (must-fix), WARN (should-fix), INFO (nice-to-have).
+  - Exit codes: 0 = clean, 1 = warnings, 2 = errors. Usable as a CI gate.
+  - `--json` flag for machine-readable output in pipelines.
+  - `--strict` flag to treat warnings as errors.
+- Doctor test suite: 9 tests covering the Azure scaffold baseline,
+  missing Dockerfile detection, single-stage Dockerfile detection,
+  root-user detection, well-formed Dockerfile pass-through, exit code
+  logic, and JSON output structure.
+- README "Validating existing services with `doctor`" section with
+  example output and a GitHub Actions CI gate snippet.
+
 ## [0.1.0] - 2026-09-07
 
 ### Added

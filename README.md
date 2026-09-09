@@ -157,6 +157,47 @@ servicectl init scratch --template=node-express --no-git
 
 # Need a README without the templated contents?
 servicectl init internal-tool --template=python-flask --no-readme
+
+# Validate an existing scaffolded service against servicectl standards
+servicectl doctor                       # check current dir, human-readable
+servicectl doctor my-service --json     # check a specific service, JSON output
+servicectl doctor my-service --strict   # warnings count as errors (CI gate)
+```
+
+## Validating existing services with `doctor`
+
+`servicectl doctor` checks an existing scaffolded service against the
+same standards the scaffolder uses. It catches drift over time:
+missing files, single-stage Dockerfiles, removed gitleaks config,
+dropped Azure bicepparam files, and more.
+
+```
+$ servicectl doctor my-service
+doctor: my-service  (deploy: azure)
+===================================
+
+ERRORS:
+  [✓] PASS  file:Dockerfile — present
+  [✓] PASS  dockerfile:multi-stage — 2 FROM instructions
+  [✓] PASS  azure:infra/main.bicep — present
+  ...
+
+WARNS:
+  [✗] FAIL  file:.gitleaks.toml — gitleaks baseline missing
+          fix: add a `.gitleaks.toml` to enable secrets scanning in CI
+
+summary: 12/17 passed; 0 errors, 1 warning, 0 info
+```
+
+**Exit codes** make it usable as a CI gate:
+- `0` — clean
+- `1` — warnings only
+- `2` — errors (or warnings under `--strict`)
+
+```yaml
+# GitHub Actions example: run doctor on every PR
+- name: servicectl doctor
+  run: servicectl doctor ./my-service --strict
 ```
 
 ## CLI reference
@@ -172,6 +213,10 @@ servicectl init <name>
   --output-dir=<path>                                       [default: .]
   --no-git                                                  skip `git init`
   --no-readme                                               skip README generation
+
+servicectl doctor [PATH]
+  --json     output JSON instead of human-readable text
+  --strict   treat warnings as errors (exit 2 if any warnings exist)
 ```
 
 ---
