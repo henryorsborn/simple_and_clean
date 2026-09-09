@@ -16,6 +16,14 @@ from rich.console import Console
 from rich.panel import Panel
 
 from . import __version__
+from .doctor import (
+    EXIT_ERROR,
+    EXIT_OK,
+    EXIT_WARN,
+    render_json,
+    render_text,
+    run_checks,
+)
 from .generator import ServiceGenerator, ScaffoldError
 from .templates import list_templates
 
@@ -170,6 +178,45 @@ def init(
             border_style="green",
         )
     )
+
+
+@main.command()
+@click.argument(
+    "path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path("."),
+    required=False,
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Treat warnings as errors (exit 2 if any warnings exist).",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Output JSON instead of human-readable text (useful in CI).",
+)
+def doctor(path: Path, strict: bool, as_json: bool) -> None:
+    """Validate an existing scaffolded service against servicectl standards.
+
+    Checks for: required files (Dockerfile, .gitleaks.toml, README.md, etc.),
+    Dockerfile quality (multi-stage, non-root user), CI configuration,
+    coverage threshold, and Azure overlay files when applicable.
+
+    Exit codes: 0 = clean, 1 = warnings, 2 = errors (or warnings if --strict).
+    """
+    report = run_checks(path)
+    if as_json:
+        click.echo(render_json(report))
+    else:
+        click.echo(render_text(report))
+
+    if strict and report.has_warnings and not report.has_errors:
+        sys.exit(EXIT_ERROR)
+    else:
+        sys.exit(report.exit_code())
 
 
 if __name__ == "__main__":
