@@ -124,11 +124,45 @@ def _dockerfile_runs_nonroot(path: Path) -> tuple[bool, str]:
 
 
 def _coverage_threshold(path: Path) -> tuple[bool, int | None, str]:
-    """Try to read the coverage threshold from the generated CI workflow.
+    """Try to read the coverage threshold from the generated project.
 
-    Looks for: `coverage_threshold: NN`, `--cov-fail-under=NN`, `--coverage=NN`,
-    or `pytest --cov-fail-under` style invocations.
+    Where we look depends on the template, because each tool stack has a
+    different idiomatic place to declare a coverage gate:
+
+      - python-flask:  `pyproject.toml` -> `tool.pytest.ini_options.addopts`
+                       containing `--cov-fail-under=NN` (set via {{ coverage_threshold }}).
+      - node-express:  `package.json` -> `jest.coverageThreshold.global.lines`
+                       (set via {{ coverage_threshold }}).
+      - dotnet-webapi: dotnet has no project-level threshold config; the gate
+                       lives in the CI workflow as `/p:Threshold=NN`.
+
+    Returns (found, value, message).
     """
+    pyproject = path / "pyproject.toml"
+    if pyproject.exists():
+        text = _file_text(pyproject)
+        m = re.search(r"--cov-fail-under=(\d+)", text)
+        if m:
+            return True, int(m.group(1)), f"coverage threshold = {m.group(1)}% (from pyproject.toml)"
+
+    pkg_json = path / "package.json"
+    if pkg_json.exists():
+        try:
+            import json as _json
+            data = _json.loads(_file_text(pkg_json))
+            threshold = (
+                data.get("jest", {})
+                    .get("coverageThreshold", {})
+                    .get("global", {})
+                    .get("lines")
+            )
+            if isinstance(threshold, (int, float)):
+                return True, int(threshold), f"coverage threshold = {int(threshold)}% (from package.json)"
+        except (ValueError, KeyError):
+            pass
+
+    # Fallback: look in the CI workflow. This is the only place dotnet-webapi
+    # stores the gate (via `/p:Threshold=NN`).
     candidates = [
         path / ".github" / "workflows" / "ci.yml",
         path / "azure-pipelines.yml",
@@ -137,6 +171,7 @@ def _coverage_threshold(path: Path) -> tuple[bool, int | None, str]:
         r"coverage[_-]?threshold[:\s=]+(\d+)",
         r"--cov-fail-under=(\d+)",
         r"--coverage=(\d+)",
+        r"/p:Threshold=(\d+)",
         r"--code-coverage[_-]?(?:threshold|minimum)?[:\s=]+(\d+)",
     ]
     for c in candidates:
@@ -147,7 +182,7 @@ def _coverage_threshold(path: Path) -> tuple[bool, int | None, str]:
             m = re.search(p, text, flags=re.IGNORECASE)
             if m:
                 return True, int(m.group(1)), f"coverage threshold = {m.group(1)}% (from {c.name})"
-    return False, None, "no coverage threshold detected in CI workflow"
+    return False, None, "no coverage threshold detected (checked pyproject.toml, package.json, CI workflow)"
 
 
 def run_checks(service_path: Path) -> DoctorReport:
@@ -250,7 +285,7 @@ def run_checks(service_path: Path) -> DoctorReport:
         severity=SEVERITY_INFO,
         passed=cov_ok,
         message=cov_msg,
-        fix="" if cov_ok else "no `coverage_threshold:` value found in CI workflow — servicectl defaults to 80%",
+        fix="" if cov_ok else "no `coverage_threshold:` value found in pyproject.toml / package.json / CI workflow — servicectl defaults to 80%",
     ))
 
     # Azure overlay (only if infra/main.bicep exists — i.e. was scaffolded with --deploy=azure).

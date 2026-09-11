@@ -24,14 +24,12 @@ from servicectl.doctor import (
 SAMPLE_AZURE_SERVICE = (
     Path("C:/Users/henry/source/repos/simple_and_clean_test_samples")
     / "sample-scaffolds"
-    / "surfside_icecream_rewards"
-    / "surfside_icecream_rewards"
+    / "surfside_icecream_pos"
 )
 SAMPLE_LOCAL_SERVICE = (
     Path("C:/Users/henry/source/repos/simple_and_clean_test_samples")
     / "sample-scaffolds"
-    / "surfside_icecream_rewards"
-    / "surfside_icecream_rewards"
+    / "surfside_icecream_pos"
 )
 
 
@@ -177,6 +175,88 @@ def test_exit_code_for_errors():
     ))
     assert report.exit_code() == 2
     assert report.has_errors
+
+
+def test_pyproject_threshold_detected():
+    """A pyproject.toml with --cov-fail-under should satisfy the threshold check."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.pytest.ini_options]\n'
+            'addopts = "--cov=app --cov-fail-under=80"\n'
+        )
+        from servicectl.doctor import _coverage_threshold
+        found, value, msg = _coverage_threshold(tmp_path)
+        assert found
+        assert value == 80
+        assert "pyproject.toml" in msg
+
+
+def test_package_json_threshold_detected():
+    """A package.json with jest coverageThreshold should satisfy the threshold check."""
+    import json as _json
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        (tmp_path / "package.json").write_text(_json.dumps({
+            "name": "x",
+            "jest": {
+                "coverageThreshold": {
+                    "global": {"lines": 85}
+                }
+            }
+        }))
+        from servicectl.doctor import _coverage_threshold
+        found, value, msg = _coverage_threshold(tmp_path)
+        assert found
+        assert value == 85
+        assert "package.json" in msg
+
+
+def test_dotnet_ci_threshold_detected():
+    """A CI workflow with /p:Threshold=NN should satisfy the threshold check."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        ci_dir = tmp_path / ".github" / "workflows"
+        ci_dir.mkdir(parents=True)
+        (ci_dir / "ci.yml").write_text(
+            "- run: dotnet test /p:Threshold=80\n"
+        )
+        from servicectl.doctor import _coverage_threshold
+        found, value, msg = _coverage_threshold(tmp_path)
+        assert found
+        assert value == 80
+        assert "ci.yml" in msg
+
+
+def test_no_threshold_anywhere_is_info_failure():
+    """A project with no threshold anywhere should fail the check with a clear message."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        # No pyproject.toml, no package.json, no CI workflow.
+        from servicectl.doctor import _coverage_threshold
+        found, value, msg = _coverage_threshold(tmp_path)
+        assert not found
+        assert value is None
+        assert "pyproject.toml" in msg and "package.json" in msg
+
+
+def test_pyproject_takes_priority_over_ci_workflow():
+    """If both pyproject and CI workflow have a threshold, pyproject wins."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        (tmp_path / "pyproject.toml").write_text(
+            'addopts = "--cov-fail-under=80"\n'
+        )
+        ci_dir = tmp_path / ".github" / "workflows"
+        ci_dir.mkdir(parents=True)
+        (ci_dir / "ci.yml").write_text(
+            "- run: dotnet test /p:Threshold=99\n"  # would never match for a python project, but sanity check
+        )
+        from servicectl.doctor import _coverage_threshold
+        found, value, msg = _coverage_threshold(tmp_path)
+        assert found
+        assert value == 80
+        assert "pyproject.toml" in msg
 
 
 def test_pause_skips_when_not_tty():

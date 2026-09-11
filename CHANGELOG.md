@@ -4,6 +4,27 @@ All notable changes to `servicectl` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-09-10
+
+### Fixed
+- **dotnet-webapi CI templates now gate on coverage threshold.** Added
+  `/p:Threshold={{ coverage_threshold }}` to both the GitHub Actions
+  (`templates/dotnet-webapi/.github/workflows/ci.yml.j2`) and Azure
+  DevOps (`templates/dotnet-webapi/azure-pipelines.yml.j2`) templates.
+  Previously the dotnet template collected cobertura coverage as an
+  artifact but never enforced a threshold — a silent quality gap
+  compared to python-flask (pytest `--cov-fail-under`) and node-express
+  (jest `coverageThreshold`).
+- **`servicectl doctor` now reads coverage thresholds from the right
+  place per template.** Previously only inspected CI workflows, so
+  python-flask and node-express services with thresholds in `pyproject.toml`
+  and `package.json` respectively were flagged as missing a threshold.
+  Now checks (in order): `pyproject.toml` (`--cov-fail-under=NN`),
+  `package.json` (`jest.coverageThreshold.global.lines`), then the CI
+  workflow (covers dotnet-webapi's `/p:Threshold=NN` and the existing
+  patterns). Added 5 new doctor tests covering each detection path
+  and priority ordering.
+
 ## [0.2.0] - 2026-09-08
 
 ### Added
