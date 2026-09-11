@@ -44,7 +44,7 @@ stages:
             displayName: dotnet restore
           - script: dotnet build --no-restore --configuration Release
             displayName: dotnet build
-          - script: dotnet test --no-build --configuration Release --logger trx --collect:"XPlat Code Coverage"
+          - script: dotnet test --no-build --configuration Release --logger trx --collect:"XPlat Code Coverage" /p:Threshold={{ coverage_threshold }}
             displayName: dotnet test
 
   - stage: build
